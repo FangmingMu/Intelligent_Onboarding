@@ -3,7 +3,7 @@ import os
 from llama_index.core import SimpleDirectoryReader
 from llama_index.core.node_parser import MarkdownNodeParser
 
-def simple_semantic_parse(data_dir: str = "2_rag_engine/data"):
+def simple_semantic_parse(data_dir: str = "stage_2_rag/data"):
     """
     遵循 KISS 原则的语义解析流程：
     1. 自动加载 Markdown 文档。

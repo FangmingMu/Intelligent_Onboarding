@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from llama_index.core import VectorStoreIndex, StorageContext, load_index_from_storage, Settings
 from llama_index.llms.openai import OpenAI
 from llama_index.embeddings.openai import OpenAIEmbedding
-from 2_rag_engine.parser import simple_semantic_parse
+from stage_2_rag.parser import simple_semantic_parse
 
 # 1. 加载环境变量 (KISS 配置管理)
 load_dotenv()
@@ -19,10 +19,10 @@ Settings.llm = OpenAI(
 Settings.embed_model = OpenAIEmbedding(
     model=os.getenv("EMBED_MODEL"),
     api_key=os.getenv("OPENAI_API_KEY"),
-    api_base=os.getenv("OPENAI_API_BASE")  # 这里沿用通用的 API Base
+    api_base=os.getenv("OPENAI_API_BASE")
 )
 
-STORAGE_DIR = "2_rag_engine/storage"
+STORAGE_DIR = "stage_2_rag/storage"
 
 def build_or_load_index():
     """
