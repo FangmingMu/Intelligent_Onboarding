@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 from llama_index.core import SimpleDirectoryReader
 from llama_index.core.node_parser import MarkdownNodeParser

@@ -1,0 +1,17 @@
+# 敏感环境配置文件 (必选)
+.env
+
+# Python 缓存与虚拟环境
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+
+# LlamaIndex 本地向量存储
+2_rag_engine/storage/
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
