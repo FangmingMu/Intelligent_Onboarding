@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from llama_index.core import VectorStoreIndex, StorageContext, load_index_from_storage, Settings
 from llama_index.llms.openai import OpenAI
 from llama_index.embeddings.openai import OpenAIEmbedding
-from stage_2_rag.parser import simple_semantic_parse
+from parser import simple_semantic_parse
 
 # 1. 加载环境变量 (KISS 配置管理)
 load_dotenv()

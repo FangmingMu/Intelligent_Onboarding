@@ -26,7 +26,7 @@ def simple_semantic_parse(data_dir: str = "stage_2_rag/data"):
     return nodes
 
 if __name__ == "__main__":
-    if not os.path.exists("2_rag_engine/data"):
-        print("❌ 错误: 未找到数据目录 2_rag_engine/data")
+    if not os.path.exists("stage_2_rag/data"):
+        print("❌ 错误: 未找到数据目录 stage_2_rag/data")
     else:
         simple_semantic_parse()
