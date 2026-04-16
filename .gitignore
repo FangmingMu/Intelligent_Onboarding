@@ -9,8 +9,15 @@ venv/
 .venv/
 env/
 
-# LlamaIndex 本地向量存储
+# LlamaIndex 本地向量存储 (Stage 2)
+stage_2_rag/storage/
 2_rag_engine/storage/
+
+# VS Code 插件临时文件
+tempCodeRunnerFile.py
+
+# 本地草稿与笔记
+note/
 
 # 操作系统文件
 .DS_Store
