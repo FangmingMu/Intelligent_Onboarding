@@ -1,143 +1,68 @@
 import os
-import httpx
 from dotenv import load_dotenv
-from typing import Any, List, Optional
 from llama_index.core import VectorStoreIndex, StorageContext, load_index_from_storage, Settings
-from llama_index.core.llms import CustomLLM, CompletionResponse, LLMMetadata, CompletionResponseGen
-from llama_index.core.embeddings import BaseEmbedding
-from llama_index.core.postprocessor.types import BaseNodePostprocessor
-from llama_index.core.schema import NodeWithScore, QueryBundle
-from openai import OpenAI as OpenAIClient
+
+# 导入自定义配置好的底层组件
+from config import PrivateLLM, CustomQwenEmbedding, CustomReranker
 from doc_parser import simple_semantic_parse
 
-# 1. 加载环境变量
+# 1. 环境准备 (Env Setup)
 load_dotenv()
 
-# --- 架构师注：终极方案 - 自定义 LLM 类，完全模仿您的原生调用方式，绕过模型名校验 ---
-class PrivateLLM(CustomLLM):
-    context_window: int = 32768
-    num_output: int = 4096
-    model_name: str = os.getenv("LLM_MODEL")
-
-    @property
-    def metadata(self) -> LLMMetadata:
-        """获取 LLM 元数据。"""
-        return LLMMetadata(
-            context_window=self.context_window,
-            num_output=self.num_output,
-            model_name=self.model_name,
-        )
-
-    def complete(self, prompt: str, **kwargs: Any) -> CompletionResponse:
-        # --- 架构师注：防御性编程，只允许 OpenAI 官方支持的参数通过 ---
-        # 常见 OpenAI 参数白名单
-        allowed_params = {
-            "temperature", "top_p", "n", "stream", "stop", "max_tokens", 
-            "presence_penalty", "frequency_penalty", "logit_bias", "user",
-            "response_format", "seed", "tools", "tool_choice"
-        }
-        api_kwargs = {k: v for k, v in kwargs.items() if k in allowed_params}
-        
-        client = OpenAIClient(
-            api_key=os.getenv("OPENAI_API_KEY"),
-            base_url=os.getenv("OPENAI_API_BASE"),
-            http_client=httpx.Client(proxy=None)
-        )
-        
-        # 显式构造请求，避免 kwargs 冲突
-        response = client.chat.completions.create(
-            model=self.model_name,
-            messages=[{"role": "user", "content": prompt}],
-            **api_kwargs
-        )
-        return CompletionResponse(text=response.choices[0].message.content)
-
-    def stream_complete(self, prompt: str, **kwargs: Any) -> CompletionResponseGen:
-        raise NotImplementedError("暂不支持流式输出")
-
-# --- 架构师注：完全手写的 Embedding 实现 ---
-class CustomQwenEmbedding(BaseEmbedding):
-    """
-    使用 httpx (proxy=None) 实现 Qwen3-Embedding，避开内置校验。
-    """
-    def _get_query_embedding(self, query: str) -> List[float]:
-        return self._get_embeddings([query])[0]
-
-    def _get_text_embedding(self, text: str) -> List[float]:
-        return self._get_embeddings([text])[0]
-
-    def _get_embeddings(self, texts: List[str]) -> List[List[float]]:
-        headers = {"Authorization": f"Bearer {os.getenv('QWEN_EMBEDDING_API_KEY')}"}
-        payload = {"model": os.getenv("QWEN_EMBEDDING_MODEL_NAME"), "input": texts}
-        with httpx.Client(proxy=None, timeout=60.0) as client:
-            response = client.post(f"{os.getenv('QWEN_EMBEDDING_API_FULL_URL')}/embeddings", 
-                                 headers=headers, json=payload)
-            response.raise_for_status()
-            data = response.json()
-            return [d["embedding"] for d in data["data"]]
-
-    async def _aget_query_embedding(self, query: str) -> List[float]:
-        return self._get_query_embedding(query)
-
-    async def _aget_text_embedding(self, text: str) -> List[float]:
-        return self._get_text_embedding(text)
-
-# --- 架构师注：Reranker 实现 ---
-class CustomReranker(BaseNodePostprocessor):
-    """
-    禁用代理的 Reranker。
-    """
-    def _postprocess_nodes(self, nodes: List[NodeWithScore], query_bundle: Optional[QueryBundle] = None) -> List[NodeWithScore]:
-        if not query_bundle or not nodes: return nodes
-        texts = [node.get_content() for node in nodes]
-        headers = {"Authorization": f"Bearer {os.getenv('RERANK_API_KEY')}"}
-        payload = {
-            "model": os.getenv("RERANK_MODEL"), 
-            "query": query_bundle.query_str, 
-            "documents": texts
-        }
-        
-        with httpx.Client(proxy=None, timeout=60.0) as client:
-            response = client.post(os.getenv("RERANK_API_URL"), headers=headers, json=payload)
-            response.raise_for_status()
-            results = response.json()["results"]
-            
-        new_nodes = []
-        for res in results:
-            idx = res.get("index")
-            if idx is not None:
-                orig_node = nodes[idx]
-                orig_node.score = res.get("relevance_score") or res.get("score")
-                new_nodes.append(orig_node)
-        return sorted(new_nodes, key=lambda x: x.score or 0.0, reverse=True)
-
-# 2. 全局配置 (Global Settings)
+# 2. 全局组件注入 (Settings Injection)
+# 这里决定了整个流程用什么模型来“思考”和“转化”
 Settings.llm = PrivateLLM()
 Settings.embed_model = CustomQwenEmbedding()
 
 STORAGE_DIR = "stage_2_rag/storage"
 
-def build_or_load_index():
+def get_knowledge_index():
+    """
+    RAG 流程第一步 & 第二步：解析 (Parse) 与 索引 (Index)
+    """
     if os.path.exists(STORAGE_DIR):
-        print(f"[Indexer] 正在加载本地索引缓存...")
-        storage_context = StorageContext.from_defaults(persist_dir=STORAGE_DIR)
-        index = load_index_from_storage(storage_context)
+        # 如果有缓存，直接加载（跳过解析，节省时间）
+        print(f"[RAG 流程] -> 加载持久化索引...")
+        return load_index_from_storage(StorageContext.from_defaults(persist_dir=STORAGE_DIR))
     else:
-        print(f"[Indexer] 正在解析文档并构建新索引...")
-        nodes = simple_semantic_parse()
-        index = VectorStoreIndex(nodes)
+        # 如果没缓存：解析文档 -> 转化为向量 -> 存入索引
+        print(f"[RAG 流程] -> 解析文档并构建新索引...")
+        nodes = simple_semantic_parse()  # 解析 (Parse)
+        index = VectorStoreIndex(nodes)  # 索引 (Index)
         index.storage_context.persist(persist_dir=STORAGE_DIR)
-        print(f"✅ 索引已持久化至 {STORAGE_DIR}")
-    return index
+        return index
 
-if __name__ == "__main__":
-    idx = build_or_load_index()
+def run_rag_pipeline(query_str: str):
+    """
+    RAG 流程的核心运行环节
+    """
+    # [流程 A] 加载数据：获取之前构建好的知识库索引
+    index = get_knowledge_index()
+    
+    # [流程 B] 准备插件：配置重排器，用于从候选文档中精选出最相关的
     reranker = CustomReranker()
     
-    query_engine = idx.as_query_engine(
-        similarity_top_k=5,
+    # [流程 C] 组装“一键式”查询引擎
+    # 它将 索引(数据) + 重排器(筛选) + Settings.llm(大模型) 绑定在一起
+    query_engine = index.as_query_engine(
+        similarity_top_k=5, 
         node_postprocessors=[reranker]
     )
     
-    response = query_engine.query("研发中心新员工如何配置 VPN？请根据文档详细回答步骤。")
-    print(f"\n🔍 [RAG 检索+重排] 测试结果:\n{response}")
+    # [流程 D] 执行生成 (这是最核心的一行代码)
+    # 虽然看起来只有一句 query()，但框架在后台自动完成了三件事：
+    # 1. 检索 (Retrieve)：去数据库里找 VPN 相关的文档片段
+    # 2. 缝合 (Synthesize)：把找到的片段 + 你的问题，自动拼成一个超长的 Prompt
+    # 3. 推理 (Generation)：【此处调用大模型】将 Prompt 发给 PrivateLLM 并获取答案
+    print(f"[RAG 流程] -> 正在生成回答...\n")
+    return query_engine.query(query_str)
+
+if __name__ == "__main__":
+    # 演示：查询 RAG 系统
+    user_question = "研发中心新员工如何配置 VPN？"
+    
+    print(f"--- RAG 系统启动 ---\n问题: {user_question}")
+    
+    response = run_rag_pipeline(user_question)
+    
+    print(f"🔍 [最终结果]:\n{response}")
