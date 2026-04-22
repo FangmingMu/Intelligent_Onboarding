@@ -1,32 +1,28 @@
-# 研发中心智能入职助手 (Intelligent Onboarding)
+# Intelligent Onboarding & IT Agent
 
-本项目旨在通过 RAG（检索增强生成）与自动化脚本技术，帮助新员工快速完成从“文档查询”到“环境配置”的全流程入职。
+这是一个生产级的“文档驱动型”智能入职与 IT 工单处理 Agent 系统。采用解耦的四层架构，集成了 RAG 检索、工具调用、安全防御与实时监控。
 
-## 🚀 项目架构 (Stage-based)
+## 🏗️ 架构概览
 
-### Stage 1: Gateway (进行中)
-- 统一接入层，负责用户交互路由。
+- **Stage 1: Gateway (网关层)**: 基于 Streamlit 的 UI 与基于上下文的意图路由引擎。
+- **Stage 2: RAG (知识检索层)**: 纯 LangChain 实现，支持语义切分、向量搜索与 Rerank。
+- **Stage 3: Action (执行层)**: 工具自动化调度、Pydantic 参数强校验与安全拦截。
+- **Stage 4: OBS (观测层)**: 全链路 Tracing、Token 消耗统计与用户反馈闭环。
 
-### Stage 2: RAG Engine (已完成核心构建)
-- **核心逻辑**：采用 LlamaIndex 框架实现标准 RAG 流程。
-- **解耦设计**：
-  - `config.py`: 适配私有 LLM、向量模型 (Qwen) 与 重排模型 (Reranker)。
-  - `indexer.py`: 业务流水线，清晰标注 [解析-索引-重排-生成] 流程。
-- **数据源**：支持 Markdown 格式的研发环境配置指南、审批矩阵及合规手册。
+## 🚀 快速启动
 
-### Stage 3: Action System (待开始)
-- **目标**：根据 RAG 提供的方案，自动执行环境检测与配置脚本。
+1.  **环境安装**:
+    ```bash
+    pip install -r requirements.txt
+    ```
+2.  **配置变量**: 修改 `.env` 文件，注入 LLM/Embedding/Rerank 接口信息。
+3.  **运行应用**:
+    ```bash
+    streamlit run stage_1_gateway/app.py
+    ```
 
-### Stage 4: Observation (待开始)
-- **目标**：监控配置进度，记录执行日志。
-
-## 🛠️ 当前进度
-- [x] 适配私有 LLM 接口与参数过滤。
-- [x] 集成自定义向量模型与 Reranker。
-- [x] 实现索引持久化与缓存加载。
-- [x] 重构代码实现配置与逻辑分离。
-- [ ] **下一阶段：混合检索 (Hybrid Search) 优化**
-
-## 📦 快速启动
-1. 配置 `.env` 文件。
-2. 运行 `python stage_2_rag/indexer.py` 进行 RAG 测试。
+## 🛠️ 技术亮点
+- **工业级 RAG**: 召回+重排两阶段架构，解决长文本噪音问题。
+- **确定性执行**: 拒绝代码生成，采用 Tool Calling 实现受控的业务逻辑。
+- **可观测性**: 自建 JSONL 日志追踪，支持基于真实数据的持续迭代。
+- **上下文感知**: 路由与执行均具备滑动窗口记忆，支持复杂多轮对话。
