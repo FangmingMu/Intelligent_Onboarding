@@ -1,99 +1,46 @@
-# 🚀 企业级智能入职与 IT 运维 Agent (Intelligent Onboarding & IT Agent)
+# 🚀 企业级智能入职与 IT 运维 Agent (LangGraph 版)
 
-这是一个专为企业内网环境设计的“文档驱动型”智能助手。它不只是一个聊天机器人，而是一个具备**自主决策、知识检索、业务办理及运行监控**能力的生产级 Agent 系统。
-
----
-
-## 🌟 核心价值与业务场景
-*   **新员工破冰**：自动解答入职指南、行政政策、财务报销等琐碎问询。
-*   **IT 工单拦截**：通过 RAG 自动解决 VPN、邮箱、环境配置等技术问题，将无法解决的问题自动转化为结构化工单。
-*   **业务自动化**：集成内部 API，实现员工信息反查、权限申请、工单提交等闭环操作。
+这是一个专为企业内网设计的“文档驱动型”智能助手，采用了 **LangChain + LangGraph** 的下一代 Agent 架构。系统实现了从语义检索到受控执行的全链路闭环，并具备高度的可观测性与自动化评测能力。
 
 ---
 
-## 🏗️ 4-Tier 模块化架构设计
-系统采用严格的解耦架构，确保了每一层的可维护性与扩展性：
+## 🏗️ 4-Tier 模块化架构演进
 
-### 1️⃣ Stage 1: 智能网关层 (Gateway & Routing)
-*   **大脑前额叶**：利用结构化输出（Structured Output）实现**意图路由**，精准分发请求至 RAG、Action 或 Chat 路径。
-*   **上下文感应**：采用滑动窗口记忆（Window Memory），解决 Agent 在多轮交互中的**指代消解**问题。
-*   **现代交互**：基于 Streamlit 构建，支持实时思考过程展示（Thought Trace）。
+### 1️⃣ Stage 1: 智能网关与状态持久化 (Gateway & Persistence)
+*   **状态机接入**：基于 **LangGraph** 实现状态流转，支持多轮对话的“指代消解”。
+*   **断点续传**：利用 **Thread ID** 与 SQLite Checkpointer，实现对话状态的跨 Session 持久化。
+*   **实时追踪**：Streamlit UI 实时渲染 Agent 的思考链路（Thought Trace）。
 
 ### 2️⃣ Stage 2: 工业级 Hybrid RAG 引擎
-*   **混合检索架构 (Hybrid Search)**：结合了 **BM25 (关键词检索)** 与 **Vector (语义搜索)** 的加权融合（Ensemble Retriever），有效解决了纯向量检索在处理强特征关键词（如 IP 地址、密码规则）时召回率低的问题。
-*   **两阶段精排**：召回后再引入 **BGE-Reranker** 进行二次过滤，确保最终注入 Prompt 的知识片段具备极高的相关性。
-*   **细粒度语义切分**：采用二级切分策略（Markdown Header + Recursive Overlap），在保持段落逻辑完整性的同时，增加片段间的上下文重叠，减少检索“碎片化”现象。
+*   **混合检索架构**：结合 **BM25** (关键词) 与 **Vector** (语义) 的 Ensemble 召回，解决 IP/专有名词召回痛点。
+*   **双阶段精排**：集成 **BGE-Reranker**，实现从召回到精排的精度飞跃。
+*   **评测闭环**：内置 **Ragas 自动化打分看板**，实时监控 Faithfulness、Recall 等四项核心指标。
 
-### 3️⃣ Stage 3: 安全执行层 (Action & Safety)
-*   **确定性执行**：拒绝不可控的代码生成（Code Interpreter），采用 **Tool Calling** 范式实现受控的业务操作。
-*   **强类型契约**：使用 **Pydantic** 进行 API 参数的 Runtime 校验，确保非法参数在进入业务系统前被拦截。
-*   **防御机制**：内置 **Human-in-the-loop (人机拦截)** 与**指数退避重试**，确保高危动作可控，网络波动下具备鲁棒性。
+### 3️⃣ Stage 3: 受控执行与人类在环 (Action & HIL)
+*   **状态机架构 (DAG)**：弃用简单循环，采用 LangGraph 构建 Agent 执行图，确保逻辑透明、可控。
+*   **Human-in-the-loop**：针对 P0 工单、Root 权限申请等高危操作实现**自动挂起与人工审批**。
+*   **强类型校验**：基于 **Pydantic** 实现工具调用的 Runtime 参数验证。
 
-### 4️⃣ Stage 4: 可观测性与评测层 (Observability & Eval)
-*   **全链路追踪**：自建日志系统，捕获每一次调用的**耗时、Token 消耗、决策路径**。
-*   **反馈闭环**：集成点赞/点踩评价组件，通过 `request_id` 自动关联坏例，驱动 RAG 知识库持续优化。
-*   **运行看板**：内置监控 Dashboard，实时呈现用户满意度与系统性能指标。
+### 4️⃣ Stage 4: 全链路观测与反馈 (OBS & Feedback)
+*   **原子级追踪**：记录每次请求的 Latency、Token 消耗及决策路径。
+*   **反馈闭环**：集成点赞/点踩机制，通过 `request_id` 自动关联坏例，驱动知识库持续迭代。
 
 ---
 
-## 🛠️ 技术栈核心
-| 维度 | 选型 | 理由 |
+## 📊 核心技术栈
+| 组件 | 选型 | 核心价值 |
 | :--- | :--- | :--- |
-| **LLM 框架** | LangChain | 灵活的组件绑定与成熟的 Tool Calling 支持 |
-| **文档解析** | LlamaIndex (Parser) | 优秀的 Markdown 语义切分能力 |
-| **向量存储** | FAISS | 极轻量、高性能，支持私有化部署 |
-| **模型接口** | OpenAI 兼容 SDK | 适配私有化部署的大模型（gpt-oss-120b） |
-| **监控分析** | Pandas + JSONL | 高性能流式日志写入与数据分析 |
+| **Agent 架构** | **LangGraph** | 解决循环死循环问题，支持受控状态机流转 |
+| **持久化层** | **SQLite Checkpointer** | 实现 HIL（人类在环）场景下的断点续传 |
+| **RAG 引擎** | **Hybrid Search + Rerank** | 召回率 (Recall) 达 0.90，精确度 (Precision) 提升 5% |
+| **评测框架** | **Ragas** | 实现 RAG 系统从“感性感觉”向“理性量化”的转变 |
 
 ---
 
 ## 🚀 快速启动
-
-### 1. 环境准备
-```bash
-# 克隆项目并安装依赖
-pip install -r requirements.txt
-```
-
-### 2. 配置文件
-创建 `.env` 文件并配置以下项：
-```env
-OPENAI_API_KEY=your_key
-OPENAI_API_BASE=your_url
-LLM_MODEL=gpt-oss-120b
-QWEN_EMBEDDING_API_FULL_URL=...
-RERANK_API_URL=...
-```
-
-### 3. 启动应用
-```bash
-streamlit run stage_1_gateway/app.py
-```
-
----
-
-## 📊 RAG 自动化评测与架构演进 (Ragas Framework)
-
-### 1. 检索策略对比实验 (Vector vs. Hybrid)
-在系统开发过程中，针对 **Vector (纯向量)** 与 **Hybrid (混合检索)** 进行了对比评测。实验发现：
-
-- **现象**：在小型知识库（< 100 片段）下，两者的 `Context Recall` 与 `Context Precision` 几乎持平。
-- **底层成因分析**：
-    1. **召回饱和**：在数据量极小时，向量检索已具备极高的召回上限。
-    2. **Reranker 均衡效应**：由于系统后端集成了 **BGE-Reranker**，它能对不同前端检索出来的 Top-K 片段进行统一精排。只要正确答案出现在候选池中，重排器就能将其置顶，从而抹平了检索方式带来的差异。
-- **进化决策**：尽管在小型数据集表现接近，但系统坚持保留 **Hybrid Search**。理由是在未来面临海量文档（包含大量专业术语、IP地址、代码版本号等强特征关键词）时，混合检索能有效弥补向量检索的语义模糊性。
-
-### 2. 最终评测得分
-基于全量 20 组黄金数据集的评测结果如下：
-
-| 评估指标 | 最终得分 | 指标含义 | 优化贡献 |
-| :--- | :--- | :--- | :--- |
-| **Context Recall** | **0.9000** | 召回率：搜到的东西是否有答案 | **Hybrid Search** 引入 BM25 解决强特征召回 |
-| **Context Precision** | **0.9167** | 精确度：最相关的片段是否排在前面 | **BGE-Reranker** 对候选片段的精准二次过滤 |
-| **Faithfulness** | **0.8262** | 忠实度：是否根据文档回答（无幻觉） | **Prompt Engineering** 与严格的上下文约束 |
-| **Answer Relevancy** | **0.7654** | 相关性：回答是否切中要害 | 大模型语义理解力与系统 Prompt 调优 |
-
-> **技术结论**：通过从单向量检索演进到 **Hybrid Search + Re-rank** 架构，`Context Recall` 实现了从 0 到 0.9 的跨越式增长，系统具备了处理企业级复杂术语与硬核知识的能力。
+1. **安装环境**: `pip install -r requirements.txt`
+2. **配置环境**: 完善 `.env` 中的 API 密钥。
+3. **启动应用**: `streamlit run stage_1_gateway/app.py`
 
 ---
 

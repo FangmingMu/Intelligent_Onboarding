@@ -1,25 +1,23 @@
-# Stage 4: 可观测性与评测层 (Observability & Eval Layer)
+# Stage 4: 全链路可观测性 (Observability)
 
-## 概述
-本模块负责整个 Agent 系统的**全链路追踪**与**持续评估**。通过记录真实运行数据与用户反馈，为系统的性能优化和效果迭代提供数据支撑。
+本模块确保了 Agent 系统的“可审计”与“持续进化”。
 
-## 核心实现
+---
 
-1.  **全链路追踪 (Tracing)**：
-    *   **指标捕获**：集成 LangChain 的 `get_openai_callback`，实时统计单次请求的 Token 消耗（Prompt/Completion/Total）。
-    *   **耗时监控**：记录端到端响应延迟（Latency），单位为毫秒。
-    *   **日志持久化**：采用 JSONL 格式存储于 `stage_4_obs/logs.jsonl`，确保数据可读性与易扩展性。
+## 📊 核心监控维度
 
-2.  **用户反馈与评测 (Eval)**：
-    *   **显式点赞/踩**：在 UI 层集成 `st.feedback("thumbs")`。
-    *   **反馈关联**：通过唯一的 `request_id` 将用户评价与对应的追踪日志进行强关联，便于定位坏例 (Bad Cases)。
+### 1. 运行时追踪 (Tracer)
+*   **Latency**：监控意图识别、RAG 检索、LLM 生成及工具调用的分步耗时。
+*   **Token Usage**：统计每一轮对话的 Prompt、Completion 及 Total Tokens，辅助成本控制。
+*   **Destination**：记录流量在 RAG、Action 与 Chat 之间的分布比例。
 
-3.  **监控大屏 (Dashboard)**：
-    *   提供独立的可视化视图，包含：
-        *   **核心 Metrics**：总请求数、平均耗时、累计 Token 消耗、用户点赞率。
-        *   **流量分布**：RAG、ACTION、CHAT 各路径的触发频率。
-        *   **性能趋势**：响应延迟的波动情况。
+### 2. 用户反馈闭环 (Feedback Loop)
+*   **点赞/点踩**：集成 Streamlit 反馈组件。
+*   **关联存储**：评价数据通过 `request_id` 与原始日志自动关联。
+*   **坏例分析**：日志以 JSONL 格式持久化，便于通过脚本提取被点踩的案例进行 Case Study。
 
-## 运行说明
-1.  启动应用：`streamlit run stage_1_gateway/app.py`
-2.  在左侧侧边栏切换至“监控看板”即可查看实时统计数据。
+### 3. 系统看板 (Monitoring Dashboard)
+在 `app.py` 的监控视图中，实时呈现：
+*   **满意度趋势**：基于反馈计算的点赞率。
+*   **性能热力**：平均响应耗时的波动情况。
+*   **实时日志流**：展示最近 10 次交互的详细技术参数。
