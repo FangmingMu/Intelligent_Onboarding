@@ -1,3 +1,4 @@
+pandas
 langchain
 langchain-openai
 langchain-community
@@ -5,3 +6,4 @@ faiss-cpu
 python-dotenv
 httpx
 pydantic
+streamlit
