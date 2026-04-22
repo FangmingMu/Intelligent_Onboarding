@@ -1,153 +1,211 @@
 import sys
 import os
 import time
+import json
 import streamlit as st
+import pandas as pd
 from dotenv import load_dotenv
 from langchain_community.callbacks import get_openai_callback
+
+# 导入 Ragas 评测相关 (采用诊断脚本中验证成功的逻辑)
+from datasets import Dataset
+from ragas import evaluate
+from ragas.metrics import faithfulness, answer_relevancy, context_recall, context_precision
 
 # 确保能导入其他 stage 的代码
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from stage_1_gateway.router import route_request
-from stage_2_rag.indexer import build_or_load_db, rerank_documents, get_llm as get_rag_llm
+from stage_2_rag.indexer import build_or_load_db, rerank_documents, get_llm as get_rag_llm, get_embeddings
 from stage_3_action.agent import run_action_agent
 from stage_4_obs.tracer import log_interaction, update_feedback, get_performance_stats
 
 load_dotenv()
 
-st.set_page_config(page_title="智能入职小秘书", page_icon="🤖", layout="wide")
+st.set_page_config(page_title="智能入职小秘书 - 实验版", page_icon="🧪", layout="wide")
 
 # --- 侧边栏：系统状态与后台入口 ---
 with st.sidebar:
     st.title("⚙️ 系统管理")
-    mode = st.radio("选择视图", ["用户对话", "监控看板"])
+    mode = st.radio("选择视图", ["用户对话", "监控看板", "🧪 RAG 实验室"])
+    
+    st.markdown("---")
+    st.header("RAG 策略配置")
+    rag_mode = st.selectbox("当前检索模式", ["Hybrid (混合检索)", "Vector (纯向量检索)"])
+    rag_k = st.slider("初始召回数量 (k)", 5, 20, 10)
     
     st.markdown("---")
     st.header("实时状态")
-    st.success("网关层: 运行中")
-    st.success("RAG 引擎: 已就绪")
-    st.success("Action 引擎: 已就绪")
+    st.success(f"模式: {rag_mode}")
+    st.success("后端接口: 已连接")
+
+backend_rag_mode = "Vector" if "Vector" in rag_mode else "Hybrid"
 
 # --- 视图 1：监控看板 ---
 if mode == "监控看板":
     st.title("📊 系统运行监控看板")
     df = get_performance_stats()
-    
     if df is not None:
-        # 指标概览
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("总请求数", len(df))
         c2.metric("平均耗时 (ms)", f"{df['latency_ms'].mean():.2f}")
         c3.metric("总消耗 Tokens", f"{df['total_tokens'].sum():,}")
-        
-        # 计算满意度
         thumbs_up = len(df[df['feedback'] == 1])
         valid_feedback = len(df[df['feedback'].notnull()])
         satisfaction = (thumbs_up / valid_feedback) * 100 if valid_feedback > 0 else 0
         c4.metric("用户点赞率", f"{satisfaction:.1f}%")
-
-        # 图表分析
-        st.markdown("### 📈 流量与性能趋势")
-        chart_col1, chart_col2 = st.columns(2)
-        
-        with chart_col1:
-            st.write("意图分发占比")
-            dest_counts = df['destination'].value_counts()
-            st.bar_chart(dest_counts)
-            
-        with chart_col2:
-            st.write("响应延迟趋势 (ms)")
-            st.line_chart(df['latency_ms'])
-
         st.markdown("### 📄 最近运行日志")
-        st.dataframe(df[['timestamp', 'query', 'destination', 'latency_ms', 'total_tokens', 'feedback']].tail(10))
+        st.dataframe(df[['timestamp', 'query', 'destination', 'latency_ms', 'total_tokens', 'feedback']].tail(10), width="stretch")
     else:
-        st.info("暂称：暂无运行数据，请先开始对话。")
+        st.info("暂无数据。")
     st.stop()
 
-# --- 视图 2：用户对话 (原逻辑) ---
-st.title("🤖 智能入职与 IT 助手")
-st.caption("基于 RAG (LlamaIndex) 与 Tool Calling (LangChain) 的企业级 Agent 架构")
-st.markdown("---")
+# --- 视图 2：🧪 RAG 实验室 ---
+if mode == "🧪 RAG 实验室":
+    st.title("🧪 RAG 实验与自动化评测看板")
+    st.info("在此模式下，您可以对比检索策略并利用 Ragas 自动为系统可靠性打分。")
+    
+    with st.expander("📊 批量数据集自动化评测 (Ragas 四维指标)", expanded=False):
+        st.write("将使用 `eval_dataset.json` 进行全量自动化打分。注意：由于需要 LLM 充当裁判，此过程较慢。")
+        if st.button("🚀 启动自动化评测流程"):
+            if os.path.exists("stage_2_rag/eval_dataset.json"):
+                with open("stage_2_rag/eval_dataset.json", "r", encoding="utf-8") as f:
+                    test_data = json.load(f)
+                
+                # 移除 [:5] 限制，运行全量评测
+                total_questions = len(test_data)
+                
+                results_data = {"question":[], "answer":[], "contexts":[], "ground_truth":[]}
+                display_results = []
+                
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                
+                for idx, item in enumerate(test_data):
+                    q = item["question"]
+                    gt = item["ground_truth"]
+                    status_text.text(f"⏳ 正在执行检索与生成 ({idx+1}/{len(test_data)}): {q}")
+                    
+                    # 1. 执行混合检索模式 (作为基准对比)
+                    retriever = build_or_load_db(mode="Hybrid")
+                    initial_docs = retriever.invoke(q)
+                    final_docs = rerank_documents(q, initial_docs)
+                    
+                    context_list = [d.page_content for d in final_docs]
+                    res = get_rag_llm().invoke(f"根据信息回答：\n{chr(10).join(context_list)}\n问题：{q}")
+                    
+                    # 收集数据供 Ragas 评估
+                    results_data["question"].append(q)
+                    results_data["answer"].append(res.content)
+                    results_data["contexts"].append(context_list)
+                    results_data["ground_truth"].append(gt)
+                    
+                    display_results.append({"问题": q, "模型回答预览": res.content[:50] + "..."})
+                    progress_bar.progress((idx + 1) / (len(test_data) * 2)) # 检索占 50% 进度
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "last_request_id" not in st.session_state:
-    st.session_state.last_request_id = None
+                # 2. 调用 Ragas 自动化打分
+                status_text.text("⚖️ 正在调用 LLM 裁判进行四维度打分...")
+                dataset = Dataset.from_dict(results_data)
+                eval_llm = get_rag_llm()
+                eval_embed = get_embeddings()
+                
+                score_result = evaluate(
+                    dataset,
+                    metrics=[faithfulness, answer_relevancy, context_recall, context_precision],
+                    llm=eval_llm,
+                    embeddings=eval_embed
+                )
+                
+                progress_bar.progress(1.0)
+                status_text.success("✅ 自动化评测完成！")
+                
+                # 将结果转为 DataFrame
+                eval_df = score_result.to_pandas()
+                
+                # 展示总分汇总
+                st.markdown("#### 🏆 评测总得分 (Average Scores)")
+                c1, c2, c3, c4 = st.columns(4)
+                
+                # 动态获取指标列（过滤掉非数值列如 question, answer 等）
+                metric_cols = [col for col in eval_df.columns if eval_df[col].dtype in ['float64', 'int64']]
+                
+                # 安全显示 metric（如果列不存在则显示 N/A）
+                def get_mean(col_name):
+                    return f"{eval_df[col_name].mean():.3f}" if col_name in eval_df.columns else "N/A"
 
-# 展示对话历史
-for i, message in enumerate(st.session_state.messages):
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+                c1.metric("Faithfulness", get_mean('faithfulness'))
+                c2.metric("Answer Relevancy", get_mean('answer_relevancy'))
+                c3.metric("Context Recall", get_mean('context_recall'))
+                c4.metric("Context Precision", get_mean('context_precision'))
 
-# 用户输入
+                # 展示明细表 (显示所有列，避开写死列名导致的 KeyError)
+                st.markdown("#### 📄 详细得分明细")
+                st.dataframe(eval_df, width="stretch")
+            else:
+                st.error("未找到 eval_dataset.json")
+
+    st.markdown("---")
+    test_query = st.text_input("单题深度路径诊断:", placeholder="输入问题查看检索片段...")
+    if st.button("查看诊断轨迹"):
+        if test_query:
+            start_time = time.time()
+            retriever = build_or_load_db(mode=backend_rag_mode)
+            docs = retriever.invoke(test_query)
+            final_docs = rerank_documents(test_query, docs)
+            
+            st.markdown(f"### 🔍 检索路径: {backend_rag_mode}")
+            for idx, doc in enumerate(final_docs):
+                with st.expander(f"Top {idx+1} | 来源: {doc.metadata.get('source')}"):
+                    st.write(doc.page_content)
+    st.stop()
+
+# --- 视图 3：用户对话 (主逻辑) ---
+st.title("🤖 智能入职助手")
+if "messages" not in st.session_state: st.session_state.messages = []
+if "last_request_id" not in st.session_state: st.session_state.last_request_id = None
+
+for m in st.session_state.messages:
+    with st.chat_message(m["role"]): st.markdown(m["content"])
+
 if prompt := st.chat_input("有什么我可以帮您的吗？"):
     st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+    with st.chat_message("user"): st.markdown(prompt)
 
     with st.chat_message("assistant"):
         start_time = time.time()
-        
         with get_openai_callback() as cb:
-            # 1. 意图路由
-            with st.status("🧠 正在思考意图...", expanded=False) as status:
-                destination = route_request(prompt, history=st.session_state.messages)
-                status.update(label=f"意图识别完成: 分发至 {destination}", state="complete")
+            destination = route_request(prompt, history=st.session_state.messages)
+            st.caption(f"🧠 路由决策: {destination}")
             
-            response_content = ""
-
-            # 2. 根据目的地执行不同逻辑
             if destination == "RAG":
-                with st.spinner("📚 正在查阅公司手册..."):
-                    # 现在 build_or_load_db() 返回的是一个混合检索器 (EnsembleRetriever)
-                    retriever = build_or_load_db()
-                    initial_docs = retriever.invoke(prompt)
-                    final_docs = rerank_documents(prompt, initial_docs)
-                    context = "\n\n".join([d.page_content for d in final_docs])
-                    
-                    llm = get_rag_llm()
-                    res = llm.invoke(f"根据以下信息回答：\n{context}\n问题：{prompt}")
-                    response_content = res.content
-
+                retriever = build_or_load_db(mode=backend_rag_mode)
+                docs = retriever.invoke(prompt)
+                final_docs = rerank_documents(prompt, docs)
+                context = "\n\n".join([d.page_content for d in final_docs])
+                res = get_rag_llm().invoke(f"根据信息回答：\n{context}\n问题：{prompt}")
+                response_content = res.content
             elif destination == "ACTION":
-                with st.spinner("🚀 正在调度执行引擎..."):
-                    from io import StringIO
-                    import sys as sys_orig
-                    old_stdout = sys_orig.stdout
-                    sys_orig.stdout = mystdout = StringIO()
-                    run_action_agent(prompt, history=st.session_state.messages)
-                    sys_orig.stdout = old_stdout
-                    response_content = mystdout.getvalue()
-
-            else:  # CHAT
-                with st.spinner("☕ 小秘书正在与您闲聊..."):
-                    llm = get_rag_llm()
-                    res = llm.invoke(f"你是一个亲切的企业入职小秘书。请和用户进行简单的日常交流，关注用户的工作状态，并保持职业化的亲和力。用户说：{prompt}")
-                    response_content = res.content
+                from io import StringIO
+                import sys as sys_orig
+                old_stdout = sys_orig.stdout
+                sys_orig.stdout = mystdout = StringIO()
+                run_action_agent(prompt, history=st.session_state.messages)
+                sys_orig.stdout = old_stdout
+                response_content = mystdout.getvalue()
+            else:
+                res = get_rag_llm().invoke(f"你是亲切的小秘书。用户说：{prompt}")
+                response_content = res.content
 
             latency = time.time() - start_time
-            
-            # 3. 记录日志 (Tracing)
-            token_stats = {
-                "total_tokens": cb.total_tokens,
-                "prompt_tokens": cb.prompt_tokens,
-                "completion_tokens": cb.completion_tokens
-            }
-            request_id = log_interaction(prompt, response_content, destination, latency, token_stats)
+            request_id = log_interaction(prompt, response_content, f"{destination}({backend_rag_mode})", latency, 
+                                        {"total_tokens": cb.total_tokens, "prompt_tokens": cb.prompt_tokens, "completion_tokens": cb.completion_tokens})
             st.session_state.last_request_id = request_id
-
-            # 展示结果
             st.markdown(response_content)
             st.session_state.messages.append({"role": "assistant", "content": response_content})
-            
-            # 显示性能指标
-            st.caption(f"⚡ 耗时: {latency*1000:.0f}ms | 🪙 Tokens: {cb.total_tokens}")
+            st.caption(f"⚡ {latency*1000:.0f}ms | 🪙 {cb.total_tokens} tokens")
 
-# 评价组件 (放在最后)
 if st.session_state.messages and st.session_state.messages[-1]["role"] == "assistant":
-    feedback = st.feedback("thumbs", key=f"fb_{st.session_state.last_request_id}")
-    if feedback is not None:
-        score = 1 if feedback == 0 else -1 # streamlit thumbs returns 0 for up, 1 for down
-        update_feedback(st.session_state.last_request_id, score)
-        st.toast("感谢您的反馈！数据已记录至监控系统。")
+    fb = st.feedback("thumbs", key=f"fb_{st.session_state.last_request_id}")
+    if fb is not None:
+        update_feedback(st.session_state.last_request_id, 1 if fb == 0 else -1)
+        st.toast("感谢反馈！")
