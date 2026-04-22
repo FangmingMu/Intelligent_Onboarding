@@ -100,8 +100,9 @@ if prompt := st.chat_input("有什么我可以帮您的吗？"):
             # 2. 根据目的地执行不同逻辑
             if destination == "RAG":
                 with st.spinner("📚 正在查阅公司手册..."):
-                    db = build_or_load_db()
-                    initial_docs = db.similarity_search(prompt, k=5)
+                    # 现在 build_or_load_db() 返回的是一个混合检索器 (EnsembleRetriever)
+                    retriever = build_or_load_db()
+                    initial_docs = retriever.invoke(prompt)
                     final_docs = rerank_documents(prompt, initial_docs)
                     context = "\n\n".join([d.page_content for d in final_docs])
                     

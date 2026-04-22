@@ -19,11 +19,10 @@
 *   **上下文感应**：采用滑动窗口记忆（Window Memory），解决 Agent 在多轮交互中的**指代消解**问题。
 *   **现代交互**：基于 Streamlit 构建，支持实时思考过程展示（Thought Trace）。
 
-### 2️⃣ Stage 2: 工业级 RAG 引擎 (Semantic Search)
-*   **双阶段检索架构**：
-    *   **召回 (Recall)**：使用 FAISS + Qwen3-Embedding 进行海量片段快速锁定。
-    *   **重排 (Rerank)**：引入 BGE-Reranker 对候选片段进行精排，解决语义噪音，大幅提升问答准确率。
-*   **语义切分策略**：基于 Markdown 标题层级进行切块，完美保留表格、列表等结构化知识。
+### 2️⃣ Stage 2: 工业级 Hybrid RAG 引擎
+*   **混合检索架构 (Hybrid Search)**：结合了 **BM25 (关键词检索)** 与 **Vector (语义搜索)** 的加权融合（Ensemble Retriever），有效解决了纯向量检索在处理强特征关键词（如 IP 地址、密码规则）时召回率低的问题。
+*   **两阶段精排**：召回后再引入 **BGE-Reranker** 进行二次过滤，确保最终注入 Prompt 的知识片段具备极高的相关性。
+*   **细粒度语义切分**：采用二级切分策略（Markdown Header + Recursive Overlap），在保持段落逻辑完整性的同时，增加片段间的上下文重叠，减少检索“碎片化”现象。
 
 ### 3️⃣ Stage 3: 安全执行层 (Action & Safety)
 *   **确定性执行**：拒绝不可控的代码生成（Code Interpreter），采用 **Tool Calling** 范式实现受控的业务操作。
