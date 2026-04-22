@@ -11,11 +11,16 @@ from openai import OpenAI as OpenAIClient
 class PrivateLLM(CustomLLM):
     context_window: int = 32768
     num_output: int = 4096
-    model_name: str = os.getenv("LLM_MODEL")
+    # 增加默认值，防止环境变量缺失导致 Pydantic 报错
+    model_name: str = os.getenv("LLM_MODEL") or "gpt-3.5-turbo"
 
     @property
     def metadata(self) -> LLMMetadata:
-        return LLMMetadata(context_window=self.context_window, num_output=self.num_output, model_name=self.model_name)
+        return LLMMetadata(
+            context_window=self.context_window, 
+            num_output=self.num_output, 
+            model_name=self.model_name or "unknown-model"
+        )
 
     def complete(self, prompt: str, **kwargs: Any) -> CompletionResponse:
         allowed_params = {"temperature", "top_p", "max_tokens", "stream"}
@@ -67,3 +72,16 @@ class CustomReranker(BaseNodePostprocessor):
                 orig_node.score = res.get("relevance_score") or res.get("score")
                 new_nodes.append(orig_node)
         return sorted(new_nodes, key=lambda x: x.score or 0.0, reverse=True)
+
+# --- 混合检索工具 ---
+try:
+    from llama_index.retrievers.bm25 import BM25Retriever
+except ImportError:
+    # 降级处理：如果没有装 BM25，我们将使用简单的关键词检索
+    print("[警告] -> llama-index-retrievers-bm25 未正确安装，请检查依赖环境。")
+    BM25Retriever = None
+
+def get_bm25_retriever(nodes, similarity_top_k=5):
+    if BM25Retriever:
+        return BM25Retriever.from_defaults(nodes=nodes, similarity_top_k=similarity_top_k)
+    return None

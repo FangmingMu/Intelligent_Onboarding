@@ -1,18 +1,7 @@
-# 核心框架 (已锁定兼容 Python 3.9 的版本)
-llama-index-core==0.10.10
-llama-index==0.10.10
-llama-index-readers-file==0.1.11
-llama-index-llms-openai==0.1.7
-
-# 数据校验与工程工具
-pydantic>=1.10.0,<2.0.0
-typing-extensions>=4.5.0
-tenacity>=8.2.0
-
-# 接口与监控
-fastapi>=0.100.0
-uvicorn>=0.23.0
-langfuse>=2.0.0
-
-# 向量数据库客户端 (可选)
-qdrant-client>=1.7.0
+langchain
+langchain-openai
+langchain-community
+faiss-cpu
+python-dotenv
+httpx
+pydantic

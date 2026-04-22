@@ -1,32 +1,37 @@
-from __future__ import annotations
 import os
-from llama_index.core import SimpleDirectoryReader
-from llama_index.core.node_parser import MarkdownNodeParser
+from langchain_text_splitters import MarkdownHeaderTextSplitter
 
 def simple_semantic_parse(data_dir: str = "stage_2_rag/data"):
     """
-    遵循 KISS 原则的语义解析流程：
-    1. 自动加载 Markdown 文档。
-    2. 按标题层级（# ## ###）切分，确保表格与步骤列表不被截断。
-    3. 每个 Node 自动携带标题元数据。
+    使用 LangChain 原生的 MarkdownHeaderTextSplitter 进行语义切分。
+    按 # ## ### 层级切分，确保逻辑块完整。
     """
-    # 1. 加载文档
-    documents = SimpleDirectoryReader(data_dir).load_data()
+    headers_to_split_on = [
+        ("#", "Header 1"),
+        ("##", "Header 2"),
+        ("###", "Header 3"),
+    ]
     
-    # 2. 核心解析器：MarkdownNodeParser (LlamaIndex 内置语义解析)
-    parser = MarkdownNodeParser()
-    nodes = parser.get_nodes_from_documents(documents)
-    
-    # 3. 结果验证 (Minimalist Output)
-    print(f"✅ 解析成功: 已将文档转化为 {len(nodes)} 个语义节点。")
-    for i, node in enumerate(nodes[:3]):
-        print(f"\n[Node {i+1}] Metadata: {node.metadata}")
-        print(f"Content Preview: {node.get_content()[:80].strip()}...")
-        
-    return nodes
+    splitter = MarkdownHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
+    all_docs = []
+
+    for filename in os.listdir(data_dir):
+        if filename.endswith(".md"):
+            file_path = os.path.join(data_dir, filename)
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+                # 语义切分
+                splits = splitter.split_text(content)
+                # 注入文件名元数据
+                for split in splits:
+                    split.metadata["source"] = filename
+                all_docs.extend(splits)
+
+    print(f"✅ LangChain 解析完成: 共生成 {len(all_docs)} 个文档片段。")
+    return all_docs
 
 if __name__ == "__main__":
-    if not os.path.exists("stage_2_rag/data"):
-        print("❌ 错误: 未找到数据目录 stage_2_rag/data")
-    else:
-        simple_semantic_parse()
+    docs = simple_semantic_parse()
+    if docs:
+        print(f"预览第一个片段内容: {docs[0].page_content[:50]}...")
+        print(f"预览第一个片段元数据: {docs[0].metadata}")

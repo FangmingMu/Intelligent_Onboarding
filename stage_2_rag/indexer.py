@@ -1,68 +1,103 @@
 import os
+import httpx
 from dotenv import load_dotenv
-from llama_index.core import VectorStoreIndex, StorageContext, load_index_from_storage, Settings
+from typing import List
 
-# 导入自定义配置好的底层组件
-from config import PrivateLLM, CustomQwenEmbedding, CustomReranker
+# LangChain 相关
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_community.vectorstores import FAISS
+from langchain.schema import Document
+
+# 导入解析器
 from doc_parser import simple_semantic_parse
 
-# 1. 环境准备 (Env Setup)
+# 加载配置
 load_dotenv()
 
-# 2. 全局组件注入 (Settings Injection)
-# 这里决定了整个流程用什么模型来“思考”和“转化”
-Settings.llm = PrivateLLM()
-Settings.embed_model = CustomQwenEmbedding()
-
-STORAGE_DIR = "stage_2_rag/storage"
-
-def get_knowledge_index():
-    """
-    RAG 流程第一步 & 第二步：解析 (Parse) 与 索引 (Index)
-    """
-    if os.path.exists(STORAGE_DIR):
-        # 如果有缓存，直接加载（跳过解析，节省时间）
-        print(f"[RAG 流程] -> 加载持久化索引...")
-        return load_index_from_storage(StorageContext.from_defaults(persist_dir=STORAGE_DIR))
-    else:
-        # 如果没缓存：解析文档 -> 转化为向量 -> 存入索引
-        print(f"[RAG 流程] -> 解析文档并构建新索引...")
-        nodes = simple_semantic_parse()  # 解析 (Parse)
-        index = VectorStoreIndex(nodes)  # 索引 (Index)
-        index.storage_context.persist(persist_dir=STORAGE_DIR)
-        return index
-
-def run_rag_pipeline(query_str: str):
-    """
-    RAG 流程的核心运行环节
-    """
-    # [流程 A] 加载数据：获取之前构建好的知识库索引
-    index = get_knowledge_index()
-    
-    # [流程 B] 准备插件：配置重排器，用于从候选文档中精选出最相关的
-    reranker = CustomReranker()
-    
-    # [流程 C] 组装“一键式”查询引擎
-    # 它将 索引(数据) + 重排器(筛选) + Settings.llm(大模型) 绑定在一起
-    query_engine = index.as_query_engine(
-        similarity_top_k=5, 
-        node_postprocessors=[reranker]
+# --- 1. 初始化 Embedding 模型 (禁用代理) ---
+def get_embeddings():
+    return OpenAIEmbeddings(
+        model=os.getenv("QWEN_EMBEDDING_MODEL_NAME"),
+        openai_api_key=os.getenv("QWEN_EMBEDDING_API_KEY"),
+        openai_api_base=os.getenv("QWEN_EMBEDDING_API_FULL_URL"),
+        http_client=httpx.Client(proxy=None, timeout=60.0)
     )
-    
-    # [流程 D] 执行生成 (这是最核心的一行代码)
-    # 虽然看起来只有一句 query()，但框架在后台自动完成了三件事：
-    # 1. 检索 (Retrieve)：去数据库里找 VPN 相关的文档片段
-    # 2. 缝合 (Synthesize)：把找到的片段 + 你的问题，自动拼成一个超长的 Prompt
-    # 3. 推理 (Generation)：【此处调用大模型】将 Prompt 发给 PrivateLLM 并获取答案
-    print(f"[RAG 流程] -> 正在生成回答...\n")
-    return query_engine.query(query_str)
+
+# --- 2. 初始化大模型 (禁用代理) ---
+def get_llm():
+    return ChatOpenAI(
+        model=os.getenv("LLM_MODEL"),
+        openai_api_key=os.getenv("OPENAI_API_KEY"),
+        openai_api_base=os.getenv("OPENAI_API_BASE"),
+        http_client=httpx.Client(proxy=None, timeout=60.0),
+        temperature=0
+    )
+
+# --- 3. 真实 Rerank 实现 (禁用代理) ---
+def rerank_documents(query: str, docs: List[Document], top_n: int = 3) -> List[Document]:
+    """
+    调用您的私有 Reranker 接口进行精排。
+    """
+    api_url = os.getenv("RERANK_API_URL")
+    api_key = os.getenv("RERANK_API_KEY")
+    model_name = os.getenv("RERANK_MODEL")
+
+    texts = [doc.page_content for doc in docs]
+    payload = {
+        "model": model_name,
+        "query": query,
+        "documents": texts
+    }
+    headers = {"Authorization": f"Bearer {api_key}"}
+
+    try:
+        with httpx.Client(proxy=None, timeout=30.0) as client:
+            response = client.post(api_url, json=payload, headers=headers)
+            response.raise_for_status()
+            results = response.json()["results"]
+            
+            # 按分数排序并筛选
+            ranked_docs = []
+            for res in results[:top_n]:
+                doc = docs[res["index"]]
+                ranked_docs.append(doc)
+            return ranked_docs
+    except Exception as e:
+        print(f"⚠️ Rerank 失败，降级使用原始排序: {e}")
+        return docs[:top_n]
+
+# --- 4. 构建或加载向量数据库 ---
+FAISS_INDEX_PATH = "stage_2_rag/faiss_index"
+
+def build_or_load_db():
+    embeddings = get_embeddings()
+    if os.path.exists(FAISS_INDEX_PATH):
+        print(f"[Indexer] 正在加载 FAISS 索引...")
+        return FAISS.load_local(FAISS_INDEX_PATH, embeddings, allow_dangerous_deserialization=True)
+    else:
+        print(f"[Indexer] 正在构建索引...")
+        langchain_docs = simple_semantic_parse()
+        vector_db = FAISS.from_documents(langchain_docs, embeddings)
+        vector_db.save_local(FAISS_INDEX_PATH)
+        return vector_db
 
 if __name__ == "__main__":
-    # 演示：查询 RAG 系统
-    user_question = "研发中心新员工如何配置 VPN？"
+    db = build_or_load_db()
+    llm = get_llm()
     
-    print(f"--- RAG 系统启动 ---\n问题: {user_question}")
+    query = "研发中心新员工如何配置 VPN？"
     
-    response = run_rag_pipeline(user_question)
+    # 第一步：初步召回 (Recall)
+    initial_docs = db.similarity_search(query, k=10)
     
-    print(f"🔍 [最终结果]:\n{response}")
+    # 第二步：精排 (Rerank)
+    print(f"[Rerank] 正在对 {len(initial_docs)} 个片段进行精排...")
+    final_docs = rerank_documents(query, initial_docs)
+    
+    # 第三步：生成回答
+    context = "\n\n".join([d.page_content for d in final_docs])
+    prompt = f"你是一个企业入职助手。请根据以下已知信息，简明扼要地回答。如果信息不足，请直说不知道。\n\n已知信息：\n{context}\n\n问题：{query}"
+    
+    print("[LLM] 正在生成回答...")
+    response = llm.invoke(prompt)
+    print(f"\n🤖 最终回答：\n{response.content}")
