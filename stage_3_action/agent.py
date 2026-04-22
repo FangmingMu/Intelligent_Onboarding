@@ -22,15 +22,24 @@ def get_agent_llm():
     )
     return llm.bind_tools(AVAILABLE_TOOLS)
 
-def run_action_agent(user_query: str):
+from langchain_core.messages import HumanMessage, ToolMessage, AIMessage
+
+def run_action_agent(user_query: str, history: list = None):
     llm_with_tools = get_agent_llm()
     
-    # 初始对话上下文
-    messages = [
-        HumanMessage(content=f"你是一个企业 IT 助手。{user_query}")
-    ]
+    # 将 Streamlit 的历史格式转换为 LangChain 的消息格式
+    messages = []
+    if history:
+        for m in history[-5:]: # 取最近 5 轮
+            if m["role"] == "user":
+                messages.append(HumanMessage(content=m["content"]))
+            else:
+                messages.append(AIMessage(content=m["content"]))
     
-    print(f"\n--- Agent 执行开始 ---")
+    # 加入当前请求
+    messages.append(HumanMessage(content=f"用户最新请求: {user_query}"))
+    
+    print(f"\n--- Agent 执行开始 (带上下文) ---")
     
     # 简单的控制循环 (Loop) 模拟思考过程
     for i in range(5):  # 最多思考 5 轮，防止死循环

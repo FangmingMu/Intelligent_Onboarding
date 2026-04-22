@@ -27,14 +27,25 @@ def get_router():
     # 使用 LangChain 的结构化输出功能
     return llm.with_structured_output(RouteResponse)
 
-def route_request(query: str) -> str:
+def route_request(query: str, history: list = None) -> str:
     router = get_router()
     
+    # 构建包含上下文的 Prompt
+    context_str = ""
+    if history:
+        # 只取最近 3 轮防止干扰
+        recent_history = history[-3:]
+        context_str = "\n".join([f"{m['role']}: {m['content']}" for m in recent_history])
+
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """你是一个企业助手的网关路由。请根据用户输入判断意图：
-        - 如果用户询问关于公司政策、IT环境配置、报销手册等知识，选择 RAG。
-        - 如果用户要求办理具体业务、重置密码、提工单、申请权限，选择 ACTION。
-        - 如果用户只是闲聊、打招呼、询问工作状态或小秘书式交流，选择 CHAT。"""),
+        ("system", f"""你是一个企业助手的网关路由。请根据当前输入及历史对话判断意图。
+        历史上下文：
+        {context_str}
+        
+        判断规则：
+        - 如果用户在回答之前关于 IT/业务的问题，或者提供办理业务所需的个人信息，选择 ACTION。
+        - 如果用户询问关于公司政策、IT环境配置等知识，选择 RAG。
+        - 如果用户单纯闲聊或询问工作状态，选择 CHAT。"""),
         ("human", "{query}")
     ])
     

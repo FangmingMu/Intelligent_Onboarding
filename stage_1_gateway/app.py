@@ -40,9 +40,9 @@ if prompt := st.chat_input("有什么我可以帮您的吗？"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        # 1. 意图路由
+        # 1. 意图路由 (传入历史记录)
         with st.status("🧠 正在思考意图...", expanded=False) as status:
-            destination = route_request(prompt)
+            destination = route_request(prompt, history=st.session_state.messages)
             status.update(label=f"意图识别完成: 分发至 {destination}", state="complete")
         
         response_content = ""
@@ -56,21 +56,20 @@ if prompt := st.chat_input("有什么我可以帮您的吗？"):
                 context = "\n\n".join([d.page_content for d in final_docs])
                 
                 llm = get_rag_llm()
+                # RAG 也可以考虑传入历史，但通常 RAG 更关注当前问题，这里暂不传以保持响应简洁
                 res = llm.invoke(f"根据以下信息回答：\n{context}\n问题：{prompt}")
                 response_content = res.content
 
         elif destination == "ACTION":
             with st.spinner("🚀 正在调度执行引擎..."):
-                # 这里简单重定向输出，实际生产建议重写 run_action_agent 返回字符串
-                # 为了演示，我们在这里捕获它的逻辑
                 from io import StringIO
                 import sys as sys_orig
                 
-                # 临时捕获标准输出以展示思考过程
                 old_stdout = sys_orig.stdout
                 sys_orig.stdout = mystdout = StringIO()
                 
-                run_action_agent(prompt)
+                # 传入历史记录给 Action Agent
+                run_action_agent(prompt, history=st.session_state.messages)
                 
                 sys_orig.stdout = old_stdout
                 response_content = mystdout.getvalue()
