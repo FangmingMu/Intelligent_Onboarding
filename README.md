@@ -1,28 +1,84 @@
-# Intelligent Onboarding & IT Agent
+# 🚀 企业级智能入职与 IT 运维 Agent (Intelligent Onboarding & IT Agent)
 
-这是一个生产级的“文档驱动型”智能入职与 IT 工单处理 Agent 系统。采用解耦的四层架构，集成了 RAG 检索、工具调用、安全防御与实时监控。
+这是一个专为企业内网环境设计的“文档驱动型”智能助手。它不只是一个聊天机器人，而是一个具备**自主决策、知识检索、业务办理及运行监控**能力的生产级 Agent 系统。
 
-## 🏗️ 架构概览
+---
 
-- **Stage 1: Gateway (网关层)**: 基于 Streamlit 的 UI 与基于上下文的意图路由引擎。
-- **Stage 2: RAG (知识检索层)**: 纯 LangChain 实现，支持语义切分、向量搜索与 Rerank。
-- **Stage 3: Action (执行层)**: 工具自动化调度、Pydantic 参数强校验与安全拦截。
-- **Stage 4: OBS (观测层)**: 全链路 Tracing、Token 消耗统计与用户反馈闭环。
+## 🌟 核心价值与业务场景
+*   **新员工破冰**：自动解答入职指南、行政政策、财务报销等琐碎问询。
+*   **IT 工单拦截**：通过 RAG 自动解决 VPN、邮箱、环境配置等技术问题，将无法解决的问题自动转化为结构化工单。
+*   **业务自动化**：集成内部 API，实现员工信息反查、权限申请、工单提交等闭环操作。
+
+---
+
+## 🏗️ 4-Tier 模块化架构设计
+系统采用严格的解耦架构，确保了每一层的可维护性与扩展性：
+
+### 1️⃣ Stage 1: 智能网关层 (Gateway & Routing)
+*   **大脑前额叶**：利用结构化输出（Structured Output）实现**意图路由**，精准分发请求至 RAG、Action 或 Chat 路径。
+*   **上下文感应**：采用滑动窗口记忆（Window Memory），解决 Agent 在多轮交互中的**指代消解**问题。
+*   **现代交互**：基于 Streamlit 构建，支持实时思考过程展示（Thought Trace）。
+
+### 2️⃣ Stage 2: 工业级 RAG 引擎 (Semantic Search)
+*   **双阶段检索架构**：
+    *   **召回 (Recall)**：使用 FAISS + Qwen3-Embedding 进行海量片段快速锁定。
+    *   **重排 (Rerank)**：引入 BGE-Reranker 对候选片段进行精排，解决语义噪音，大幅提升问答准确率。
+*   **语义切分策略**：基于 Markdown 标题层级进行切块，完美保留表格、列表等结构化知识。
+
+### 3️⃣ Stage 3: 安全执行层 (Action & Safety)
+*   **确定性执行**：拒绝不可控的代码生成（Code Interpreter），采用 **Tool Calling** 范式实现受控的业务操作。
+*   **强类型契约**：使用 **Pydantic** 进行 API 参数的 Runtime 校验，确保非法参数在进入业务系统前被拦截。
+*   **防御机制**：内置 **Human-in-the-loop (人机拦截)** 与**指数退避重试**，确保高危动作可控，网络波动下具备鲁棒性。
+
+### 4️⃣ Stage 4: 可观测性与评测层 (Observability & Eval)
+*   **全链路追踪**：自建日志系统，捕获每一次调用的**耗时、Token 消耗、决策路径**。
+*   **反馈闭环**：集成点赞/点踩评价组件，通过 `request_id` 自动关联坏例，驱动 RAG 知识库持续优化。
+*   **运行看板**：内置监控 Dashboard，实时呈现用户满意度与系统性能指标。
+
+---
+
+## 🛠️ 技术栈核心
+| 维度 | 选型 | 理由 |
+| :--- | :--- | :--- |
+| **LLM 框架** | LangChain | 灵活的组件绑定与成熟的 Tool Calling 支持 |
+| **文档解析** | LlamaIndex (Parser) | 优秀的 Markdown 语义切分能力 |
+| **向量存储** | FAISS | 极轻量、高性能，支持私有化部署 |
+| **模型接口** | OpenAI 兼容 SDK | 适配私有化部署的大模型（gpt-oss-120b） |
+| **监控分析** | Pandas + JSONL | 高性能流式日志写入与数据分析 |
+
+---
 
 ## 🚀 快速启动
 
-1.  **环境安装**:
-    ```bash
-    pip install -r requirements.txt
-    ```
-2.  **配置变量**: 修改 `.env` 文件，注入 LLM/Embedding/Rerank 接口信息。
-3.  **运行应用**:
-    ```bash
-    streamlit run stage_1_gateway/app.py
-    ```
+### 1. 环境准备
+```bash
+# 克隆项目并安装依赖
+pip install -r requirements.txt
+```
 
-## 🛠️ 技术亮点
-- **工业级 RAG**: 召回+重排两阶段架构，解决长文本噪音问题。
-- **确定性执行**: 拒绝代码生成，采用 Tool Calling 实现受控的业务逻辑。
-- **可观测性**: 自建 JSONL 日志追踪，支持基于真实数据的持续迭代。
-- **上下文感知**: 路由与执行均具备滑动窗口记忆，支持复杂多轮对话。
+### 2. 配置文件
+创建 `.env` 文件并配置以下项：
+```env
+OPENAI_API_KEY=your_key
+OPENAI_API_BASE=your_url
+LLM_MODEL=gpt-oss-120b
+QWEN_EMBEDDING_API_FULL_URL=...
+RERANK_API_URL=...
+```
+
+### 3. 启动应用
+```bash
+streamlit run stage_1_gateway/app.py
+```
+
+---
+
+## 🛡️ 设计哲学 (Philosophy)
+1.  **KISS (Keep It Simple, Stupid)**：优先使用成熟、简单的库解决核心问题，不为了用框架而用框架。
+2.  **安全性第一**：所有外部调用必须经过 Pydantic 校验与安全拦截器。
+3.  **可观测性即生命线**：没有监控的 Agent 无法在生产环境存活。
+
+---
+
+## 📄 许可证
+本项目仅用于技术交流与面试演示。
