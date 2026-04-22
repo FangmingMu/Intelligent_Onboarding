@@ -39,7 +39,7 @@ def run_evaluation():
     with open("stage_2_rag/eval_dataset.json", "r", encoding="utf-8") as f:
         test_data = json.load(f)
     
-    test_data = test_data[:2] 
+    test_data = test_data[:5] 
     
     db = build_or_load_db()
     llm = get_llm()
@@ -51,8 +51,9 @@ def run_evaluation():
         q = item["question"]
         gt = item["ground_truth"]
         
-        # --- 策略优化：从 k=10 扩大到 k=15，并进行重排 ---
-        initial_docs = db.similarity_search(q, k=15)
+        # --- 策略优化：使用混合检索器的 invoke 方法 ---
+        # 注意：EnsembleRetriever 内部已经配置了召回数量，直接 invoke 即可
+        initial_docs = db.invoke(q)
         # 如果重排器太严格，我们可以暂时调低阈值或增加重排后的保留数量
         final_docs = rerank_documents(q, initial_docs, top_n=5)
         

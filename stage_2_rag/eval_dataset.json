@@ -1,82 +1,82 @@
 [
     {
-        "question": "研发中心新员工入职第一天，VPN 账户的初始密码规则是什么？",
-        "ground_truth": "初始密码为：Emp@ + 身份证后 6 位。入职后需在 24 小时内通过 SSO 平台强制修改。"
+        "question": "配置 VPN 时，需要输入的网关地址具体是什么？",
+        "ground_truth": "网关地址应填写：vpn-gw-shanghai.corp-sec.com:4433。"
     },
     {
-        "question": "配置 VPN 时，服务器地址应该填什么？",
-        "ground_truth": "服务器地址应填写：vpn-gateway.yovole.com。"
+        "question": "新员工在进行 VPN 多因子身份认证 (MFA-Auth) 时需要输入哪两项信息？",
+        "ground_truth": "需要输入 LDAP-Account 与 Corp-Authenticator App 动态产生的 6 位 TOTP-Token。"
     },
     {
-        "question": "如果新员工需要申请核心生产数据库的只读权限，审批流是怎样的？",
-        "ground_truth": "审批流为：直属主管 -> 部门负责人 -> 技术委员会架构组 -> 安全合规部（备案）。"
+        "question": "如果一名初级研发 (P3) 申请生产环境数据库的只读权限，系统会如何处理？",
+        "ground_truth": "系统必须根据 [R-101] 规则立即驳回。因为 P1 核心生产系统的读权限要求申请人职级必须为 P6 (高级研发) 及以上。"
     },
     {
-        "question": "普通员工可以申请代码仓库（GitLab）的管理员权限吗？",
-        "ground_truth": "不可以。根据权限矩阵，代码仓库管理员权限仅限各团队 Tech Lead 或指定 SRE 申请。"
+        "question": "申请 GitLab 代码仓库的管理员权限需要谁审批？",
+        "ground_truth": "需要申请人、技术保障中心 (SRE-Team) 以及安全委员会三个节点的审批，且申请人职级需达到 P8 (总监) 及以上。"
     },
     {
-        "question": "在报销手册中，北京地区的标准间住宿补贴上限是多少？",
-        "ground_truth": "北京地区（一线城市）的标准间住宿补贴上限为 600 元/天。"
+        "question": "一名职级为 P3 的员工去上海出差，标准间的住宿报销限额是多少？",
+        "ground_truth": "上海属于 T1 城市。职级为 P1-P4 的员工在 T1 城市的住宿报销限额为 550 元/晚，且仅限标准间/大床房。"
     },
     {
-        "question": "差旅报销时，如果丢失了滴滴打车的电子行程单，可以用什么替代？",
-        "ground_truth": "滴滴电子行程单属于电子凭证，若丢失需提供支付账单截图并由财务部人工核算，但原则上不予报销非正规凭证支出。"
+        "question": "如果出差住宿费超出了限额的 10%，应该如何操作？",
+        "ground_truth": "超出限额 10% 以上的情况，需要所属部门的 VP 进行邮件签核。"
     },
     {
-        "question": "申请 JIRA 高级分析权限需要谁审批？",
-        "ground_truth": "需要 PMO 负责人审批。"
+        "question": "去武汉出差一天的伙食补贴是多少？",
+        "ground_truth": "武汉属于 T2 城市。根据补贴标准，T2 城市的伙食补贴为 100 元/天。"
     },
     {
-        "question": "新员工入职后，领取工位网线的流程是什么？",
-        "ground_truth": "无需申请，由行政部在入职当天于工位电脑包中预置。"
+        "question": "所有的报销申请必须通过哪个门户提交？",
+        "ground_truth": "所有的报销申请必须通过 iExpense-Portal 提交。"
     },
     {
-        "question": "午餐补助的发放标准是什么？是否需要发票？",
-        "ground_truth": "午餐补助为每月随工资发放，标准为 30 元/工作日，无需提供发票。"
+        "question": "报销流程有时效要求吗？出差结束后多久需要发起报销？",
+        "ground_truth": "有时效要求。员工需在行程结束后 14 个自然日内发起报销流程。"
     },
     {
-        "question": "如果出差期间跨越了两个城市，住宿标准按哪个算？",
-        "ground_truth": "按实际住宿地城市标准执行。若当天在两地停留，按住宿行为发生地的标准报销。"
+        "question": "晚上几点之后下班可以报销打车费？",
+        "ground_truth": "晚于 21:30 下班可报销打车费，但仅限企业滴滴或美团企业版。"
     },
     {
-        "question": "VPN 连接显示 'Authentication Failed' 且重置密码无效，应该找谁？",
-        "ground_truth": "应在飞书联系“IT 服务台（IT-Helpdesk）”人工处理。"
+        "question": "重置 VPN 密码前，Agent 必须执行什么安全动作？",
+        "ground_truth": "根据 [R-103] 规则，Agent 必须调用 Send-MFA-Code 接口向用户手机发送验证码，并要求用户输入回显确认。"
     },
     {
-        "question": "权限矩阵中，Confluence 的只读权限是默认开启的吗？",
-        "ground_truth": "是的，所有正式员工入职后默认开启 Confluence 全员可见空间的只读权限。"
+        "question": "权限管理中的‘时效性原则’是如何定义的？",
+        "ground_truth": "所有短期项目权限（Temp-Access）默认有效期为 30 个自然日，到期后系统会自动回收。"
     },
     {
-        "question": "差旅报销超过 30 天后提交会有什么后果？",
-        "ground_truth": "超过 30 天提交的报销需通过“超期说明”流程，并由部门负责人加签后方可进入财务审批。"
+        "question": "如果连续 3 次报销被打回，会有什么后果？",
+        "ground_truth": "如果连续 3 次因同一非技术性错误被驳回，系统将自动抄送所属部门的 HRBP。"
     },
     {
-        "question": "申请内网测试环境（Staging）的 Root 权限需要技术总监审批吗？",
-        "ground_truth": "不需要。Staging 环境的 Root 权限仅需直属主管和运维负责人审批。"
+        "question": "配置 VPN 时如果提示 Auth-Protocol-Error，最可能的排查方向是什么？",
+        "ground_truth": "应检查本地系统时钟是否与 NTP-Server-Cluster 保持同步。"
     },
     {
-        "question": "笔记本电脑损坏，更换备用机的审批时效是多久？",
-        "ground_truth": "IT 服务台收到申请后，通常在 2 个工作小时内完成备用机下发。"
+        "question": "P5 职级的员工去北京出差，可以预定行政大床房吗？住宿限额是多少？",
+        "ground_truth": "可以。北京是 T1 城市，P5-P7 职级的员工允许预定行政大床房，限额为 800 元/晚。"
     },
     {
-        "question": "报销单据中，餐饮费和交际应酬费有什么区别？",
-        "ground_truth": "餐饮费指员工个人出差餐补；交际应酬费指招待外部客户支出，需关联商务招待申请单。"
+        "question": "申请 P3 级系统（如 Jira/Confluence）的权限，审批流是怎样的？",
+        "ground_truth": "P3 级系统如 VPN 远程访问的权限申请，仅需申请人及直属上级的审批。"
     },
     {
-        "question": "可以申请将内网数据下载到个人优盘吗？",
-        "ground_truth": "严格禁止。内网数据外发或拷贝需经过安全部审批并使用公司专用加密存储介质。"
+        "question": "财务中心在审计节点主要会检查发票的哪些信息？",
+        "ground_truth": "财务中心会对发票的 Tax-ID（纳税人识别号）与 Company-Name（公司名称）进行自动化 OCR 校验。"
     },
     {
-        "question": "VPN 客户端支持 macOS 系统吗？",
-        "ground_truth": "支持。指南中明确提供了 Windows, macOS, Linux 以及移动端的安装包链接。"
+        "question": "新员工如何获取 AnyConnect-Custom-V2026 客户端安装包？",
+        "ground_truth": "应从内部的 Internal-Nexus-Repo 下载对应的安装包。"
     },
     {
-        "question": "新员工入职 3 个月内可以申请公司租房补贴吗？",
-        "ground_truth": "租房补贴仅面向通过试用期的正式员工，新员工需在转正后申请。"
+        "question": "在 ArgoCD 中手动执行 GitOps 同步时，需要勾选哪个选项？",
+        "ground_truth": "在点击 Sync 时需要勾选 Prune-Resources 选项。"
     },
     {
-        "question": "差旅中乘坐高铁，商务座可以报销吗？",
-        "ground_truth": "普通员工仅限报销二等座或一等座；商务座仅限 VP 级别及以上人员报销。"
+        "question": "我可以帮同事张三申请查看他的薪资单吗？",
+        "ground_truth": "不可以。根据 [R-104] 高压线规则，禁止申请他人的非公开信息权限，此行为会触发 Security-Alert-S1 告警并抄送安全合规部。"
     }
 ]

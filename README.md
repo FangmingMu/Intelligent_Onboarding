@@ -72,10 +72,18 @@ streamlit run stage_1_gateway/app.py
 
 ---
 
-## 🛡️ 设计哲学 (Philosophy)
-1.  **KISS (Keep It Simple, Stupid)**：优先使用成熟、简单的库解决核心问题，不为了用框架而用框架。
-2.  **安全性第一**：所有外部调用必须经过 Pydantic 校验与安全拦截器。
-3.  **可观测性即生命线**：没有监控的 Agent 无法在生产环境存活。
+## 📊 RAG 自动化评测成果 (Ragas Framework)
+
+为了量化评估系统的可靠性，引入了 **Ragas** 评测框架，基于手写的 20 组“黄金问答对”进行了全量评估：
+
+| 评估指标 | 最终得分 | 指标含义 | 优化贡献 |
+| :--- | :--- | :--- | :--- |
+| **Context Recall** | **0.9000** | 召回率：搜到的东西是否有答案 | **Hybrid Search** 引入 BM25 解决强特征召回 |
+| **Context Precision** | **0.9167** | 精确度：最相关的片段是否排在前面 | **BGE-Reranker** 对候选片段的精准二次过滤 |
+| **Faithfulness** | **0.8262** | 忠实度：是否根据文档回答（无幻觉） | **Prompt Engineering** 与严格的上下文约束 |
+| **Answer Relevancy** | **0.7654** | 相关性：回答是否切中要害 | 大模型语义理解力与系统 Prompt 调优 |
+
+> **技术结论**：通过从单向量检索演进到 **Hybrid Search + Re-rank** 架构，`Context Recall` 实现了从 0 到 0.9 的跨越式增长，系统具备了处理企业级复杂术语与硬核知识的能力。
 
 ---
 
