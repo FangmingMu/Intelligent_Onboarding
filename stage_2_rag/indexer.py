@@ -9,7 +9,10 @@ from langchain_community.vectorstores import FAISS
 from langchain.schema import Document
 
 # 导入解析器
-from doc_parser import simple_semantic_parse
+try:
+    from doc_parser import simple_semantic_parse
+except ImportError:
+    from stage_2_rag.doc_parser import simple_semantic_parse
 
 # 加载配置
 load_dotenv()

@@ -3,7 +3,10 @@ import httpx
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, ToolMessage
-from tools import AVAILABLE_TOOLS
+try:
+    from tools import AVAILABLE_TOOLS
+except ImportError:
+    from stage_3_action.tools import AVAILABLE_TOOLS
 
 # 加载配置
 load_dotenv()
